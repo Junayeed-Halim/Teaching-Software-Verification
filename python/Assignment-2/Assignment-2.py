@@ -18,22 +18,74 @@ class ICFGTraversal:
         res = []
         cs = self.pag.getCallSites()
         for c in cs:
-            if c.getCalledFunction().getName() == "sink":
+            callee = c.getCalledFunction()
+            if callee is None:
+                continue
+            if callee.getName() == "sink":
                 res.append(c)
-            if c.getCalledFunction().getName() == "svf_assert":
+            if callee.getName() == "svf_assert":
                 res.append(c)
         return res
     
     def dfs(self, src: 'pysvf.ICFGEdge', dst: 'pysvf.ICFGNode'):
         # TODO: Implement your context-sensitive ICFG traversal here to traverse each program path (once for any loop) from src edge to dst node
-        pass
+        cur_edge = src
+
+        # Create state: (edge, callstack) for context-sensitive cycle detection
+        state = (cur_edge, tuple(self.callstack))
+
+        # If we've visited this state before, stop (handles loops)
+        if state in self.visited:
+            return
+        self.visited.add(state)
+
+        # Add current edge to path
+        self.path.append(cur_edge)
+
+        # Check if we reached the sink
+        if cur_edge.getDstNode() == dst:
+            self.printPath()
+            self.visited.discard(state)
+            self.path.pop()
+            return
+
+        # Explore all outgoing edges from current node
+        for edge in cur_edge.getDstNode().getOutEdges():
+            if isinstance(edge, pysvf.IntraCFGEdge):
+                # Intra-procedural edge: just continue
+                self.dfs(edge, dst)
+
+            elif isinstance(edge, pysvf.CallCFGEdge):
+                # Call edge: push callsite, traverse, then pop
+                self.callstack.append(edge.getCallSite())
+                self.dfs(edge, dst)
+                self.callstack.pop()
+
+            elif isinstance(edge, pysvf.RetCFGEdge):
+                # Return edge: must match callsite for context sensitivity
+                if len(self.callstack) > 0 and self.callstack[-1] == edge.getCallSite():
+                    # Matching callsite: pop, traverse, push back
+                    self.callstack.pop()
+                    self.dfs(edge, dst)
+                    self.callstack.append(edge.getCallSite())
+                elif len(self.callstack) == 0:
+                    # Empty callstack: allow (could be external call)
+                    self.dfs(edge, dst)
+                # else: callsite mismatch -> infeasible path, skip
+
+        # Backtrack
+        self.visited.discard(state)
+        self.path.pop()
 
 
     def printPath(self):
         # TODO: print each path once this method is called, and
         # add each path as a string into std::set<std::string> paths
         # Print the path in the format "START: 1->2->4->5->END", where -> indicate an ICFGEdge connects two ICFGNode IDs
-        pass
+        node_ids = [str(edge.getDstNode().getId()) for edge in self.path]
+        path_str = "START: " + "->".join(node_ids) + "->END"
+        print(path_str)
+        self.paths.add(path_str)
 
 
     def getPaths(self):

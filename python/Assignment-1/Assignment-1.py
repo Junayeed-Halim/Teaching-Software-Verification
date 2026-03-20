@@ -43,14 +43,24 @@ class GraphTraversal:
 
 
     def print_path(self, path):
-        # TODO: print each path once this method is called, and
-        # add each path as a string into std::set<std::string> paths
-        # Print the path in the format "START: 1->2->4->5->END", where -> indicate an edge connecting two node IDs
-        pass
+        path_str = "START: " + "->".join(str(node.get_node_id()) for node in path) + "->END"
+        print(path_str)
+        self.paths.add(path_str)
 
     def dfs(self, src_edge, dst):
-        # TODO: Implement your depth first search here to traverse each program path (once for any loop) from src to dst
-        pass
+        src = src_edge.get_dst()
+        self.visited.add(src)
+        self.path.append(src)
+
+        if src == dst:
+            self.print_path(self.path)
+        else:
+            for edge in src.get_out_edges():
+                if edge.get_dst() not in self.visited:
+                    self.dfs(edge, dst)
+
+        self.visited.remove(src)
+        self.path.pop()
 
     def get_paths(self):
         return self.paths
